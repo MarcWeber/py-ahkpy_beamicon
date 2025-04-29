@@ -1,7 +1,7 @@
 """ 
 PYTHONPATH=. python -m ahkpy remote_control.py
 """
-from  autohotkey_py_beamicon import beamicon
+from  ahkpy_beamicon import beamicon
 
 def main():
     doc = beamicon.setup_external_keyboard()

@@ -1,9 +1,9 @@
 Allow to remote control Beamicon2 from Python
 
 USAGE remote_control.py:
-  python -m ahkpy .\autohotkey_py_beamicon\__init__.py
+  python -m ahkpy .\ahkpy_beamicon\__init__.py
 
-  python remote_control.py # setup to write autohotkey_py_beamicon.json file.
+  python remote_control.py # setup to write ahkpy_beamicon.json file.
   You have to move the mouse then press F1 to some locations so that auto clicking works.
   That's required because size may depend on font sizes etc.
 

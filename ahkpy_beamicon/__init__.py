@@ -1,20 +1,3 @@
-"""
-TODO:
-This should be moved to Github as its own library
-control beamicon executable using python.ahk
-Felt easier than reverse engineering for prototyping
-
-Position of elements changes depending no whether menu bar is visible
-
-TODO: REFACTOR:
-[ ] XR XRC etc -> give them nice names so that the code is understandable
-    and add configs to configurable_positions
-[ ] think about formulars to make them clickable cause they are two way from
-    click to config and from config to click
-[ ] have a config file so that settings can be switched and stored on disk
-    rather than in this file
-
-"""
 import sys
 from dataclasses_json import dataclass_json
 import numpy as np
@@ -76,7 +59,7 @@ BeamiconSettings_configurable = {
         "speed_pos_0_01_xy": "",       # of drop down's last
 }
 
-CONFIG_FILE = Path('autohotkey_py_beamicon.json')
+CONFIG_FILE = Path('ahkpy_beamicon.json')
 
 settings_defaults = {
 }
