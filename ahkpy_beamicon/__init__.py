@@ -1,6 +1,8 @@
 import sys
 from dataclasses_json import dataclass_json
 import numpy as np
+import traceback
+import warnings
 import math
 from pathlib import Path
 from typing import Callable, Any, TypeVar, Generic, Optional, TypeAlias, cast, Literal, Tuple
@@ -22,10 +24,6 @@ ClickPos: TypeAlias   = np.ndarray
 # SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
 # SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
 # same for x shadow like 5px
-
-minus_x_zero_buttons = 370
-zero_x = 34
-zero_d = 40
 
 YP = 20 # TODO
 pos_ys = [ YP + 60 , YP + (60.0+150)/2,   YP + 150] # TODO
@@ -51,7 +49,7 @@ BeamiconSettings_configurable = {
         "tab_Programm_y": "center of the tab Programm",
         "tab_Einrichten_y": "center of the tab Einrichten",
 
-        "advertising_area_top": "",
+        "advertising_area_height": "",
 
 
         # tab program buttons R64958172
@@ -67,7 +65,7 @@ BeamiconSettings_configurable = {
         "topleft_xy": "center of topleft button on second tab (the following are ",
         "top_xy": "center of top button on second tab",
         "topright_xy": "center of topright button on second tab",
-        "up_xy": "center of up button on second tab",
+        "zup_xy": "center of up button on second tab",
         "left_xy": "center of left button on second tab",
         "right_xy": "center of right button on second tab",
         "downleft_xy": "center of downleft button on second tab",
@@ -79,7 +77,58 @@ BeamiconSettings_configurable = {
         "speed_pos_continuous_xy": "", # of drop down's first
         "speed_pos_0_01_xy": "",       # of drop down's last
 
+
+        "x0_xy": "center of x[0] button top right",
+        "y0_xy": "center of y[0] button top right",
+        "z0_xy": "center of z[0] button top right",
+        "xyz0_xy": "center of xyz[0] button top right",
 }
+
+SettingKey: TypeAlias = Literal[
+
+
+        "window_title_height",
+        "window_title_height_plus_menu",
+        "window_title_height_plus_toolbar",
+
+        "tab_width",
+        "tab_Programm_y",
+        "tab_Einrichten_y",
+
+        "advertising_area_height",
+
+
+        # tab program buttons R64958172
+        "play_xy",
+        "n_xy",
+        "rewind_xy",
+        "stop_xy",
+        "edit_file_xy",
+        "edit_xy",
+
+
+        # tab Jog/Setup / Einrichten buttons R3127775242
+        "topleft_xy",
+        "top_xy",
+        "topright_xy",
+        "zup_xy",
+        "left_xy",
+        "right_xy",
+        "downleft_xy",
+        "down_xy",
+        "downright_xy",
+        "zdown_xy",
+
+
+        "speed_pos_continuous_xy",
+        "speed_pos_0_01_xy",
+
+
+        "x0_xy",
+        "y0_xy",
+        "z0_xy",
+        "xyz0_xy",
+]
 
 CONFIG_FILE = Path('ahkpy_beamicon.json')
 
@@ -141,7 +190,7 @@ class BeamiconSettings:
     tab_Einrichten_y: int = 40
 
 
-    advertising_area_top: int = 80
+    advertising_area_height: int = 80
 
 
     # program tab buttons R64958172
@@ -224,7 +273,7 @@ class BeamiconSettings:
 
         border_left = 4
         inner_rect_topleft  = np.array([4, T], dtype=np.int32)
-        inner_rect_size     = np.array([W ,H - T - self.advertising_area_top ], dtype=np.int32)
+        inner_rect_size     = np.array([W ,H - T - self.advertising_area_height ], dtype=np.int32)
         center = inner_rect_size / 2
         program_button_center = (center[0]/2, center[1])
 
@@ -260,7 +309,7 @@ class BeamiconSettings:
                 my = round( (win_inner_height - 185) / 2 + 80) + T
                 )
 
-    def _set_setting(self, what, mp: Tuple[int, int]):
+    def setting_from_mouse_pos(self, what: SettingKey, mp: Tuple[int, int]):
         s = self.sizes
         if what == "window_title_height":
             self.window_title_height = mp[1]
@@ -268,17 +317,17 @@ class BeamiconSettings:
             self.window_title_height_plus_menu = mp[1]
         elif what == "window_title_height_plus_toolbar":
             self.window_title_height_plus_toolbar = mp[1]
-        elif what == "advertising_area_top":
-            self.advertising_area_top = s.H - mp[1]
+        elif what == "advertising_area_height":
+            self.advertising_area_height = s.H - mp[1]
         elif what == "tab_width":
             self.tab_width = s.W - mp[0]
-        elif what == "tab_Programm_y":
-            self.tab_Programm_y = mp[1]
-        elif what == "tab_Einrichten_y":
-            self.tab_Einrichten_y = mp[1]
+        elif what in [ "tab_Einrichten_y", "tab_Programm_y"]:
+            setattr(self, what, mp[1] - s.T)
+        elif what in ["x0_xy", "y0_xy", "z0_xy", "xyz0_xy"]:
+            setattr(self, what, (mp[0] - s.L, mp[1] - s.T))
         elif what in ["speed_pos_continuous_xy", "speed_pos_0_01_xy"]:
             setattr(self, what, (mp[0] - s.L, mp[1] - s.T))
-        elif what in ["topleft_xy", "top_xy", "topright_xy", "up_xy", "left_xy", "right_xy", "downleft_xy", "down_xy", "downright_xy", "zdown_xy"]:
+        elif what in ["topleft_xy", "top_xy", "topright_xy", "zup_xy", "left_xy", "right_xy", "downleft_xy", "down_xy", "downright_xy", "zdown_xy"]:
             setattr(self, what, (mp[0] - s.L, mp[1] - s.T))
         elif what in [ "play_xy", "n_xy", "rewind_xy", "stop_xy", "edit_file_xy", "edit_xy" ]:
             C = s.program_button_center
@@ -287,7 +336,34 @@ class BeamiconSettings:
         else:
             raise Exception(f"don't know how to set setting {what}")
 
-
+    def mouse_pos_from_setting(self, what: SettingKey):
+        s = self.sizes
+        v = getattr(self, what)
+        if what == "window_title_height":
+            mp = (100, v)
+        elif what == "window_title_height_plus_menu":
+            mp = (100, v)
+        elif what == "window_title_height_plus_toolbar":
+            mp = (100, v)
+        elif what == "advertising_area_height":
+            mp = (100, s.H - v)
+        elif what == "tab_width":
+            mp = (s.W - self.tab_width, 130)
+        elif what in [ "tab_Einrichten_y", "tab_Programm_y"]:
+            mp = (s.W - 15, s.T + v)
+        elif what in ["x0_xy", "y0_xy", "z0_xy", "xyz0_xy"]:
+            mp = (s.L + v[0], s.T + v[1])
+        elif what in ["speed_pos_continuous_xy", "speed_pos_0_01_xy"]:
+            mp = (s.L + v[0], s.T + v[1])
+        elif what in ["height", "top_xy", "topright_xy", "zup_xy", "left_xy", "right_xy", "downleft_xy", "down_xy", "downright_xy", "zdown_xy"]:
+            mp = (s.L + v[0], s.T + v[1])
+        elif what in [ "play_xy", "n_xy", "rewind_xy", "stop_xy", "edit_file_xy", "edit_xy" ]:
+            C = s.program_button_center
+            # R4114271535
+            mp = (C[0] + v[0], C[1] + v[1])
+        else:
+            raise Exception(f"don't know how to set setting {what}")
+        return mp
 
 
 @dataclass
@@ -295,15 +371,26 @@ class Beamicon:
 
     settings: BeamiconSettings
 
+    tab: str | None = None # last selected tab
+
     @property
     def sizes(self):
         return self.settings.sizes
 
 
-    def settings_from_mouse_pos(self, missing_only = False):
+    def settings_from_mouse_pos(self, missing_only = False, move_mouse = True):
+        """
+        guides the user to press F1 on the location
+        to get x/y coordinates of the points of interest
+        """
         with WithWindow(self.settings.match_beamicon_main) as bw:
             keys = iter([k for k in BeamiconSettings_configurable.keys() if not hasattr(self, k)] if missing_only else BeamiconSettings_configurable.keys())
             key = None
+
+            def write():
+                with CONFIG_FILE.open('w') as f:
+                    f.write(self.settings.to_json())
+
             def describe_next():
                 nonlocal key, keys
                 try:
@@ -312,12 +399,20 @@ class Beamicon:
                         self.beamicon_select_tab("Programm")
                     if key == "topleft_xy":
                         self.beamicon_select_tab("Einrichten")
+                    if move_mouse:
+                        try:
+                            mp = self.settings.mouse_pos_from_setting(key)
+                            if mp[0] != 0 and mp[1] != 0:
+                                self.mouse_move_abs(*mp)
+                        except:
+                            print("ERROR SETTING MOUSE - maybe setting missing")
+                            traceback.print_exc()
+
                     print(f"configuring {key}. {BeamiconSettings_configurable[key]}. Then press F1")
 
                 except StopIteration:
                     key = None
-                    with CONFIG_FILE.open('w') as f:
-                        f.write(self.settings.to_json())
+                    write()
                     print(f" config file {CONFIG_FILE} written. You're done. Let's hope it works :-)")
 
             describe_next()
@@ -325,8 +420,9 @@ class Beamicon:
             def next_():
                 mp = ahk.get_mouse_pos()
                 print(f"mp {mp}")
-                self.settings._set_setting(key, mp)
+                self.settings.setting_from_mouse_pos(key, mp)
                 describe_next()
+                write()
 
             ahk.hotkey("F1", next_)
 
@@ -339,21 +435,24 @@ class Beamicon:
         ahk.mouse_move(x=x, y=y, relative_to="window")
 
     @with_beamicon_main_window
+    def action_on_setting(self, setting: SettingKey, action: Literal["mouse_press", "mouse_release", "click"]):
+        mp = self.settings.mouse_pos_from_setting(setting)
+        self.mouse_move_abs(*mp)
+        if action in ["click", "mouse_press", "mouse_release"]:
+            getattr(ahk, action)()
+
+    @with_beamicon_main_window
     def click_rel_window(self, x: float, y: float):
+        warnings.warn("use action_on_setting", DeprecationWarning )
         self.mouse_move_abs(x, y)
         ahk.click()
 
 
     @with_beamicon_main_window
     def click_program_button(self, button: Literal[ "play", "n", "rewind", "stop", "edit_file", "edit" ]):
+        warnings.warn("use action_on_setting", DeprecationWarning )
         self.beamicon_select_tab("Programm")
-        s = self.settings.sizes
-        pos_name = f"{button}_xy"
-        p = getattr(self.settings, pos_name)
-        self.click_rel_window(
-            s.program_button_center[0] + p[0],
-            s.program_button_center[1] + p[1],
-        )
+        self.action_on_setting(f"{button}_xy", "click")
 
 
     @with_beamicon_main_window
@@ -365,16 +464,20 @@ class Beamicon:
 
     @with_beamicon_main_window
     def beamicon_select_tab(self, tab: Literal["Programm", "Einrichten"]):
-        # WinGetPos, X, Y, W, H, A
-        s = self.sizes
-        mx = s.XRTY-15
+        if self.tab == tab:
+            return
 
-        if (tab == "Programm"):
-            self.click_rel_window(mx, s.T +  20)
+        if tab == "Programm":
+            y = self.settings.mouse_pos_from_setting("tab_Programm_y")
+            self.action_on_setting("tab_Programm_y", action ="click")
+            self.tab = tab
 
-        if (tab == "Einrichten"):
-            self.click_rel_window( mx, s.T + 80)
-        time.sleep(0.2) # 0.2 worked ?
+        if tab == "Einrichten":
+            y = self.settings.mouse_pos_from_setting("tab_Einrichten_y")
+            self.action_on_setting("tab_Einrichten_y", action ="click")
+            self.tab = tab
+
+        time.sleep(0.2) # 0.2 worked ? R3562056818
 
     @with_beamicon_main_window
     def SetSpeed(self, speed: Literal["continuous", "10 mm", "1 mm", "0.1 mm", "0.01 mm"]):
@@ -386,44 +489,32 @@ class Beamicon:
         self.click_rel_window(
             s.L + self.settings.speed_pos_continuous_xy[0],
             s.T + self.settings.speed_pos_continuous_xy[1]
-            + round(idx * (self.settings.speed_pos_0_01_xy[1] - self.settings.speed_pos_continuous_xy[1]) / len(speeds))
+            + round(1.0 * idx * (1.0 + self.settings.speed_pos_0_01_xy[1] - self.settings.speed_pos_continuous_xy[1]) / len(speeds))
         )
 
 
     @with_beamicon_main_window
+    def axis_set_0(self, axis: Literal["x", "y", "z", "xyz"]):
+        warnings.warn("use action_on_setting", DeprecationWarning )
+        s = self.sizes
+        attr = f"{axis}0_xy"
+        v = getattr(self.settings, attr)
+        self.click_rel_window( s.L + v[0], s.T + v[1])
+
     def x_axis_set_0(self):
-        s = self.sizes
-        self.beamicon_select_tab( "Einrichten")
-        mx = s.XRY - minus_x_zero_buttons
-        self.click_rel_window( mx, s.T + zero_x + 0 * zero_d )
-
-    @with_beamicon_main_window
+        raise Exception('use axis_set_0')
     def y_axis_set_0(self):
-        s = self.settings.sizes
-        self.beamicon_select_tab( "Einrichten")
-        mx = s.XRY - minus_x_zero_buttons
-        self.click_rel_window( mx, s.T + zero_x + 1 * zero_d )
-
-    @with_beamicon_main_window
+        raise Exception('use axis_set_0')
     def z_axis_set_0(self):
-        s = self.sizes
-        self.beamicon_select_tab( "Einrichten")
-        mx = s.XRY - minus_x_zero_buttons
-        self.click_rel_window( mx, s.T + zero_x + 2 * zero_d  )
+        raise Exception('use axis_set_0')
 
     @with_beamicon_main_window
     def all_axis_set_0(self):
-        s = self.sizes
-        self.beamicon_select_tab( "Einrichten")
-        mx = s.XRY - minus_x_zero_buttons
-        self.click_rel_window( mx, s.T + zero_x + 4 * zero_d  )
-
-        # my = round( (H - 185) / 2 + 80)
-        # c  = round( (W - 756) / 2)
-        # C  = round( (W - 28) / 2) # real center
+        raise Exception('use axis_set_0')
 
     @with_beamicon_main_window
     def program_reset(self):
+        warnings.warn("use action_on_setting", DeprecationWarning )
         s = self.sizes
         self.beamicon_select_tab( "Programm")
         mx = s.c + -30
@@ -431,6 +522,7 @@ class Beamicon:
 
     @with_beamicon_main_window
     def stop(self):
+        warnings.warn("use action_on_setting", DeprecationWarning )
         s = self.sizes
         mx = s.c + 20
         self.beamicon_select_tab("Programm")
@@ -438,6 +530,7 @@ class Beamicon:
 
     @with_beamicon_main_window
     def play(self):
+        warnings.warn("use action_on_setting", DeprecationWarning )
         s = self.sizes
         mx = s.c - 160
         self.beamicon_select_tab( "Programm")
@@ -562,9 +655,9 @@ class Beamicon:
         for x in [
             ["Numpad5", lambda: self.goto_reference()],
             # ["Numpad0", all_axis_set_to_0],
-            ["Numpad7", lambda: self.x_axis_set_0()],
-            ["Numpad8", lambda: self.y_axis_set_0()],
-            ["Numpad9", lambda: self.z_axis_set_0()],
+            ["Numpad7", lambda: self.axis_set_0("x")],
+            ["Numpad8", lambda: self.axis_set_0("y")],
+            ["Numpad9", lambda: self.axis_set_0("z")],
             ["NumpadDot", lambda: self.goto_reference()],
             ["Numpad4", lambda: self.click_program_button("rewind")],
             ["Numpad5", lambda: self.click_program_button("stop")],
@@ -599,18 +692,12 @@ class Beamicon:
           6 (pfeil rechts) = play
         """
 
-    @with_beamicon_main_window
-    def move_mouse_to(self, x, y):
-        s = self.sizes
-        if (x<0):
-            assert(False) # when is this used ? might not be very accurate because tab size might depend on font size
-            x =  s.W + x
-        ahk.mouse_move(x=x, y=y+s.T, relative_to="window")
 
 needs_setup, beamicon_settings = BeamiconSettings.from_config_file()
 beamicon = Beamicon(beamicon_settings);
 if needs_setup:
     beamicon.settings_from_mouse_pos()
+# beamicon.settings_from_mouse_pos()
 
 # beamicon.start/stop etc see above
 
