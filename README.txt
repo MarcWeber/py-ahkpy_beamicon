@@ -1,5 +1,7 @@
 Allow to remote control Beamicon2 from Python
 
+https://www.autohotkey.com/docs/v1/KeyList.htm#numpad
+
 USAGE remote_control.py:
   python -m ahkpy .\ahkpy_beamicon\__init__.py
 
