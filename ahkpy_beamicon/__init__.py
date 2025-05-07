@@ -37,7 +37,7 @@ speeds = {
     "0.01 mm" :   301 + 4 * speed_y_dist,
 }
 
-# each of these settinsg can be set by mouse
+# each of these settings can be set by mouse
 # see set_*
 BeamiconSettings_configurable = {
 
@@ -240,7 +240,6 @@ class BeamiconSettings:
         else:
             with CONFIG_FILE.open('r') as f:
                 bs = BeamiconSettings.from_json(f.read())
-            print(f"settinsg example left_xy={bs.left_xy}")
             return False, bs
     @property
     def window(self):
